@@ -1,58 +1,65 @@
 ---
 version: "3.7"
 services:
-    elasticsearch:
-        image: docker.elastic.co/elasticsearch/elasticsearch:7.5.1
-        container_name: elasticsearch
-        environment:
-          ELASTIC_PASSWORD: adminadmin123
-          discovery.type: single-node
-        volumes:
-          - type: bind
-            source: ./elk/elasticsearch/elasticsearch.yml
-            target: /usr/share/elasticsearch/config/elasticsearch.yml
-            read_only: true
-          - type: volume
-            source: elasticsearch
-            target: /usr/share/elasticsearch/data
-        ports:
-          - 9200:9200
-          - 9300:9300
-        networks:
-          - elk
-        
-    kibana:
-        image: docker.elastic.co/kibana/kibana:7.5.1
-        container_name: kibana
-        ports:
-          - 5601:5601
-        volumes:
-          - type: bind
-            source: ./elk/kibana/kibana.yml
-            target: /usr/share/kibana/config/kibana.yml
-            read_only: true
-        networks:
-          - elk
-        depends_on: 
-          - elasticsearch
-      
-    logstash:
-        image: docker.elastic.co/logstash/logstash:7.5.1
-        container_name: logstash
-        ports:
-          - 5000:5000
-          - 9600:9600
-        volumes:
-          - type: bind
-            source: ./elk/logstash/logstash.yml
-            target: /usr/share/logstash/config/logstash.yml
-            read_only: true
-          - type: bind
-            source: ./elk/logstash/logstash.conf
-            target: /usr/share/logstash/config/logstash.conf
-            read_only: true
-        depends_on: 
-          - elasticsearch
+
+  traefik:
+    image: traefik:v2.1
+    container_name: traefik
+    restart: unless-stopped
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=true"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    networks:
+      - elk
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.6.1
+    container_name: elasticsearch
+    restart: unless-stopped
+    environment:
+      ELASTIC_PASSWORD: adminadmin123
+      discovery.type: single-node
+    volumes:
+      - type: bind
+        source: ./elk/elasticsearch/elasticsearch.yml
+        target: /usr/share/elasticsearch/config/elasticsearch.yml
+        read_only: true
+      - type: volume
+        source: elasticsearch
+        target: /usr/share/elasticsearch/data
+    ports:
+      - 9200:9200
+    networks:
+      - elk
+    
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.6.1
+    container_name: kibana
+    restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.kibana.rule=Host(`${URL}`)
+      - traefik.http.services.kibana.loadbalancer.server.port=5601
+      - traefik.http.routers.kibana.entrypoints=web
+      - traefik.http.middlewares.kibana.headers.accessControlAllowCredentials=true
+      - traefik.http.middlewares.kibana.headers.accesscontrolallowmethods=GET,OPTIONS,PUT,POST,DELETE,PATCH
+      - traefik.http.middlewares.kibana.headers.accesscontrolalloworigin=origin-list-or-null
+      - traefik.http.middlewares.kibana.headers.accesscontrolmaxage=100
+      - traefik.http.middlewares.kibana.headers.addvaryheader=true
+    volumes:
+      - type: bind
+        source: ./elk/kibana/kibana.yml
+        target: /usr/share/kibana/config/kibana.yml
+        read_only: true
+    networks:
+      - elk
+    depends_on: 
+      - elasticsearch
 
 volumes:
     elasticsearch:
