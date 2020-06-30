@@ -10,15 +10,25 @@ services:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=true"
       - "--entrypoints.web.address=:80"
+      - "--entrypoints.web-secure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.email=adrixop95@me.com"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/acme.json"
+      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
+    labels:
+      - "traefik.http.routers.http-catchall.rule=hostregexp(`{host:.+}`)"
+      - "traefik.http.routers.http-catchall.entrypoints=web"
+      - "traefik.http.routers.http-catchall.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
     networks:
       - elk
 
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:7.7.1
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.8.0
     container_name: elasticsearch
     restart: unless-stopped
     environment:
@@ -38,19 +48,21 @@ services:
       - elk
     
   kibana:
-    image: docker.elastic.co/kibana/kibana:7.7.1
+    image: docker.elastic.co/kibana/kibana:7.8.0
     container_name: kibana
     restart: unless-stopped
     labels:
       - traefik.enable=true
       - traefik.http.routers.kibana.rule=Host(`${URL}`)
       - traefik.http.services.kibana.loadbalancer.server.port=5601
-      - traefik.http.routers.kibana.entrypoints=web
+      - traefik.http.routers.kibana.entrypoints=web-secure
       - traefik.http.middlewares.kibana.headers.accessControlAllowCredentials=true
       - traefik.http.middlewares.kibana.headers.accesscontrolallowmethods=GET,OPTIONS,PUT,POST,DELETE,PATCH
       - traefik.http.middlewares.kibana.headers.accesscontrolalloworigin=origin-list-or-null
       - traefik.http.middlewares.kibana.headers.accesscontrolmaxage=100
       - traefik.http.middlewares.kibana.headers.addvaryheader=true
+      - traefik.http.routers.kibana.tls=true
+      - traefik.http.routers.kibana.tls.certresolver=letsencrypt
     volumes:
       - type: bind
         source: ./elk/kibana/kibana.yml
