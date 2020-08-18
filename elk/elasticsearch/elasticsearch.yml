@@ -10,6 +10,7 @@ network.host: 0.0.0.0
 #
 xpack.license.self_generated.type: basic
 xpack.monitoring.collection.enabled: true
+xpack.security.enabled: true
 
 ## Memory settigs
 bootstrap.memory_lock: true
